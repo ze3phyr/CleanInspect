@@ -1,8 +1,15 @@
 {
   "manifest_version": 3,
   "name": "CleanInspect",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "A clean DevTools panel for first-party page resources.",
   "devtools_page": "devtools.html",
-  "permissions": ["storage", "clipboardWrite"]
+  "permissions": ["storage", "clipboardWrite"],
+  "minimum_chrome_version": "109",
+  "icons": {
+    "16": "icons/cleaninspect-16.png",
+    "32": "icons/cleaninspect-32.png",
+    "48": "icons/cleaninspect-48.png",
+    "128": "icons/cleaninspect-128.png"
+  }
 }

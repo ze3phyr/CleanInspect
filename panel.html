@@ -1,12 +1,174 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CleanInspect</title><link rel="stylesheet" href="panel.css"></head>
-<body><header><div class="brand"><strong>CleanInspect</strong><span id="count">0 requests</span></div><div class="controls"><select id="scope" title="Origin scope"><option value="same">Same origin only</option><option value="subdomains">Include subdomains (same registrable domain)</option><option value="all">All</option></select><label class="check"><input id="preserve" type="checkbox"> Preserve log</label><button id="clear">Clear</button></div></header>
-<section class="filters"><input id="search" type="search" placeholder="Search URLs, methods, types…"><label class="check"><input id="regex" type="checkbox"> Regex</label><label class="check"><input id="hideData" type="checkbox"> Hide data:/blob:</label><span class="divider"></span><label class="check"><input class="hideType" data-type="image" type="checkbox"> Images</label><label class="check"><input class="hideType" data-type="font" type="checkbox"> Fonts</label><label class="check"><input class="hideType" data-type="stylesheet" type="checkbox"> CSS</label><label class="check"><input class="hideType" data-type="media" type="checkbox"> Media</label><button id="savePreset" title="Save these filters for this site">Save site preset</button><button id="importScope">Paste scope</button><button id="uploadScope">Upload scope</button><input id="scopeFile" type="file" accept=".txt,.csv" hidden><label class="check"><input id="onlyScope" type="checkbox"> In scope only</label><span id="message" role="status"></span></section>
-<section class="actionbar"><button id="exportHar">Download filtered HAR</button><button id="exportUrls">Download URL list</button><button id="copyCurl">Copy cURL</button><button id="findingsShortcut">View findings (0)</button></section>
-<nav class="tabs"><button class="tab active" data-view="requests">Requests</button><button class="tab" data-view="scripts">Scripts <span id="scriptCount">0</span></button><button class="tab" data-view="endpoints">Endpoints <span id="endpointCount">0</span></button><button class="tab" data-view="findings">Findings <span id="secretCount">0</span></button></nav>
-<main id="requestsView"><table><thead><tr><th data-key="method">Method</th><th data-key="status">Status</th><th data-key="type">Type</th><th data-key="url">URL</th><th data-key="size">Size</th><th data-key="time">Time</th><th>Notes / tags</th></tr></thead><tbody id="rows"></tbody></table><div id="empty">Waiting for page requests…</div><div id="sentinel"></div></main>
-<section id="scriptsView" class="dataView" hidden><div class="viewHead"><strong>JavaScript files</strong><button id="copyScripts">Copy all URLs</button></div><div id="scriptsList"></div><div id="scriptsEmpty" class="emptyView">No scripts found yet.</div></section>
-<section id="endpointsView" class="dataView" hidden><div class="viewHead"><strong>Endpoints</strong><div><input id="endpointSearch" type="search" placeholder="Filter endpoints…"><button id="copyEndpoints">Copy endpoints</button></div></div><p class="hint">Collected from observed requests and URL/path strings in loaded JavaScript. Query values are omitted; parameter names are listed.</p><div id="endpointsList"></div><div id="endpointsEmpty" class="emptyView">No endpoints found yet.</div></section>
-<section id="findingsView" class="dataView" hidden><div class="viewHead"><strong>Secret scan and technology hints</strong></div><p class="hint">Potential matches from available JavaScript and response bodies. Matched values are shown in full so you can review them. Matches can be false positives.</p><p id="scanStatus" class="hint">Waiting for scripts and responses…</p><h3>Potential secrets</h3><div id="secretsList"></div><div id="secretsEmpty" class="emptyView">No potential secrets found yet.</div><h3>Technology hints</h3><div id="techList"></div><div id="techEmpty" class="emptyView">No technology hints found yet.</div></section>
-<script src="patterns.js"></script>
-<footer>First-party grouping: <span id="groups">—</span></footer><script src="panel.js"></script></body></html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>CleanInspect</title>
+    <link rel="stylesheet" href="panel.css" />
+  </head>
+  <body>
+    <header>
+      <div class="brand">
+        <strong>CleanInspect</strong><span id="count">0 requests</span>
+      </div>
+      <div class="controls">
+        <select id="scope" title="Origin scope">
+          <option value="same">Same origin only</option>
+          <option value="subdomains">
+            Include subdomains (same registrable domain)
+          </option>
+          <option value="all">All</option></select
+        ><label class="check"
+          ><input id="preserve" type="checkbox" /> Preserve log</label
+        ><button id="clear">Clear</button>
+      </div>
+    </header>
+    <section class="filters">
+      <input
+        id="search"
+        type="search"
+        placeholder="Search URLs, methods, types…"
+      /><label class="check"><input id="regex" type="checkbox" /> Regex</label
+      ><label class="check"
+        ><input id="hideData" type="checkbox" /> Hide data:/blob:</label
+      ><span class="divider"></span
+      ><label class="check"
+        ><input class="hideType" data-type="image" type="checkbox" />
+        Images</label
+      ><label class="check"
+        ><input class="hideType" data-type="font" type="checkbox" />
+        Fonts</label
+      ><label class="check"
+        ><input class="hideType" data-type="stylesheet" type="checkbox" />
+        CSS</label
+      ><label class="check"
+        ><input class="hideType" data-type="media" type="checkbox" />
+        Media</label
+      ><button id="savePreset" title="Save these filters for this site">
+        Save site preset</button
+      ><button id="importScope">Paste scope</button
+      ><button id="uploadScope">Upload scope</button
+      ><input id="scopeFile" type="file" accept=".txt,.csv" hidden /><label
+        class="check"
+        ><input id="onlyScope" type="checkbox" /> In scope only</label
+      ><span id="message" role="status"></span>
+    </section>
+    <section class="actionbar">
+      <button id="exportHar">Download filtered HAR</button
+      ><button id="exportUrls">Download URL list</button
+      ><button id="copyCurl">Copy cURL</button
+      ><label class="check"
+        ><input id="redactSensitive" type="checkbox" checked /> Redact sensitive
+        data</label
+      ><strong id="redactWarning" class="warning" hidden
+        >Sensitive data will be included in exports</strong
+      ><button id="findingsShortcut">View findings (0)</button>
+    </section>
+    <nav class="tabs">
+      <button class="tab active" data-view="requests">Requests</button
+      ><button class="tab" data-view="scripts">
+        Scripts <span id="scriptCount">0</span></button
+      ><button class="tab" data-view="endpoints">
+        Endpoints <span id="endpointCount">0</span></button
+      ><button class="tab" data-view="findings">
+        Findings <span id="secretCount">0</span>
+      </button>
+    </nav>
+    <main id="requestsView">
+      <table>
+        <thead>
+          <tr>
+            <th data-key="method">Method</th>
+            <th data-key="status">Status</th>
+            <th data-key="type">Type</th>
+            <th data-key="url">URL</th>
+            <th data-key="size">Size</th>
+            <th data-key="time">Time</th>
+            <th>Notes / tags</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div id="empty">Waiting for page requests…</div>
+      <div id="sentinel"></div>
+    </main>
+    <section id="scriptsView" class="dataView" hidden>
+      <div class="viewHead">
+        <strong>JavaScript files</strong
+        ><button id="copyScripts">Copy all URLs</button>
+      </div>
+      <div id="scriptsList"></div>
+      <div id="scriptsEmpty" class="emptyView">No scripts found yet.</div>
+    </section>
+    <section id="endpointsView" class="dataView" hidden>
+      <div class="viewHead">
+        <strong>Endpoints</strong>
+        <div>
+          <input
+            id="endpointSearch"
+            type="search"
+            placeholder="Filter endpoints…"
+          /><button id="copyEndpoints">Copy endpoints</button>
+        </div>
+      </div>
+      <p class="hint">
+        Collected from observed requests and URL/path strings in loaded
+        JavaScript. Query values are omitted; parameter names are listed.
+      </p>
+      <div id="endpointsList"></div>
+      <div id="endpointsEmpty" class="emptyView">No endpoints found yet.</div>
+    </section>
+    <section id="findingsView" class="dataView" hidden>
+      <div class="viewHead">
+        <strong>Secret scan and technology hints</strong
+        ><strong id="findingsHeaderCount">0 findings</strong>
+      </div>
+      <p class="hint">
+        Potential matches from available JavaScript and text responses. Review
+        each match and its context; matches can be false positives.
+      </p>
+      <p id="scanStatus" class="hint">Waiting for scripts and responses…</p>
+      <div id="severityChips" class="severityChips"></div>
+      <label class="check infoToggle"
+        ><input id="showInfo" type="checkbox" /> Show recon / info
+        findings</label
+      >
+      <h3>Potential findings</h3>
+      <div id="secretsList"></div>
+      <div id="secretsEmpty" class="emptyView">
+        No potential findings match these severity filters.
+      </div>
+      <h3>Technology hints</h3>
+      <div id="techList"></div>
+      <div id="techEmpty" class="emptyView">No technology hints found yet.</div>
+    </section>
+    <script src="patterns.js"></script>
+    <script src="public-suffix-list.js"></script>
+    <script src="domain-utils.js"></script>
+    <script src="finding-resolver.js"></script>
+    <script src="request-view.js"></script>
+    <script src="privacy-utils.js"></script>
+    <section
+      id="editorDialog"
+      class="inlineDialog"
+      role="dialog"
+      aria-modal="false"
+      aria-labelledby="editorTitle"
+      hidden
+    >
+      <div class="editorCard">
+        <h3 id="editorTitle">Edit</h3>
+        <label id="editorPrimaryLabel" for="editorPrimary">Value</label
+        ><textarea id="editorPrimary" rows="4"></textarea
+        ><label id="editorSecondaryLabel" for="editorSecondary">Details</label
+        ><textarea id="editorSecondary" rows="2"></textarea>
+        <div class="editorActions">
+          <button id="editorCancel" type="button">Cancel</button
+          ><button id="editorSave" type="button">Save</button>
+        </div>
+      </div>
+    </section>
+    <footer>First-party grouping: <span id="groups">—</span></footer>
+    <script src="panel.js"></script>
+  </body>
+</html>

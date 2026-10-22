@@ -1,63 +1,162 @@
-# CleanInspect
+# CleanInspect 1.3.0
 
-CleanInspect is a local Chrome DevTools extension that provides a focused request table and filters out browser-owned URL schemes. It uses plain JavaScript and has no build step, external dependencies, network calls, or telemetry.
+CleanInspect is a local Manifest V3 Chrome DevTools extension. Its panel
+organizes requests and page resources, helps inspect scripts and endpoints, and
+scans available text for configured patterns. The extension has no runtime
+dependencies, background service worker, telemetry, or network calls. The Public
+Suffix List updater is a developer tool; it downloads only when someone runs it.
 
 ## Install
 
-1. Open `chrome://extensions` and turn on **Developer mode**.
-2. Choose **Load unpacked** and select this `CleanInspect` directory (the one containing `manifest.json`).
-3. Open or reload a webpage, open DevTools, then select the **CleanInspect** panel.
+1. Open `chrome://extensions` in Chrome and enable **Developer mode**.
+2. Click **Load unpacked** and select the `CleanInspect` folder containing
+   `manifest.json`.
+3. Open or reload a webpage, open DevTools, then choose the **CleanInspect**
+   panel.
 
-## Use
+## Requests and scope
 
-- Requests come from the DevTools HAR/network events. Loaded resources are also included when available.
-- Click column headings to sort. Scroll down to render additional rows for large lists.
-- Same-origin is the default. The panel excludes non-web browser/extension schemes and filters requests, scripts, and endpoints using the selected origin scope.
-- Choose same origin, the same registrable domain (including subdomains), or all hosts.
-- Use checkboxes to hide images, fonts, CSS, media, or data/blob URLs. Those URL types remain visible by default.
-- Search with plain text, or enable Regex for JavaScript regular expressions.
-- **Save site preset** stores the current filters in `chrome.storage.local`, keyed by the inspected hostname. A matching preset is applied when the panel loads or the page navigates.
-- **Preserve log** keeps captured requests when navigation occurs; **Clear** empties the current list.
-- **Scripts** lists loaded JavaScript and source map URLs. `sourceMappingURL` comments are flagged when Chrome makes the script text available. Click a script to open it in Sources; use **Copy all URLs** to copy the visible list.
-- **Endpoints** combines URLs seen in requests with likely API paths and absolute URLs found in loaded JavaScript. Query values are left out; observed query parameter names are shown. Filter with the search field, copy an individual endpoint, or use **Copy endpoints** to copy the visible results.
-- Use the **Copy** button beside any request URL to copy that one URL.
-- Request rows are marked for write methods, JSON responses, Authorization request headers, and Set-Cookie response headers. Hover a marked row to see the reasons.
-- **View findings** stays visible in the action bar and shows the number of secret and technology findings. Each secret finding shows its full matched value, pattern, occurrence count, and source location. Edit `patterns.js` to customize the local patterns; the scanner stores findings only in the panel session.
-- **Import scope** pastes domains and **Upload scope** reads a text or CSV file. Put one hostname or wildcard (such as `*.example.com`) per line, then turn on **In scope only**. The imported list is saved for that site.
-- Click a request's **Notes / tags** cell to add or edit its note and comma-separated tags. These are saved per site.
-- **Download filtered HAR** and **Download URL list** export requests currently shown after filtering. **Copy cURL** copies one command per observed network request currently shown.
-- Reload differences mark requests whose method and URL did not appear in the previous recorded load. Findings also show basic framework and server-header hints when recognizable.
+- Requests come from DevTools network events and the available HAR. Loaded
+  resources are added when Chrome exposes them.
+- Click a column heading to sort. The request list renders in batches as you
+  scroll.
+- **Same origin only** is the default. **Include subdomains** groups by the
+  bundled Public Suffix List (ICANN and private rules); **All** includes
+  supported web and WebSocket requests.
+- The bundled suffix data treats private hosting suffixes such as `github.io` as
+  tenant boundaries. IPv4, IPv6, and localhost hosts are kept separate.
+- `data:` URLs show in every scope mode unless **Hide data/blob** is checked.
+  `blob:` URLs use their creator origin and remain subject to the selected
+  scope.
+- Browser and extension schemes such as `chrome-extension:`, `chrome:`,
+  `devtools:`, and `about:` are excluded. `ws:` and `wss:` requests appear as
+  **websocket**.
+- Hide Images, Fonts, CSS, or Media to filter those request types. Search
+  accepts plain text or JavaScript regular expressions.
+- **Save site preset** stores filters in `chrome.storage.local`, keyed by
+  inspected hostname. Presets are applied when the panel loads.
+- **Preserve log** keeps captured rows during navigation. **Clear** empties the
+  current request and finding lists and resets scan counts.
+- First-party grouping is based on the same bundled PSL rules used by the
+  subdomain scope.
 
-## Feature checklist
+## Scripts and endpoints
 
-- [x] Manifest V3 DevTools panel
-- [x] Request/resource table with sortable columns
-- [x] Filter browser and extension schemes
-- [x] Origin scope, first/third-party domain indication, type and URL filters
-- [x] Text and regex search
-- [x] Per-host filter presets
-- [x] Clear and preserve log
-- [x] DevTools theme and incremental row rendering
-- [x] JavaScript collector, source map detection, endpoint extraction and deduplication
-- [x] Write method, JSON, Authorization, and Set-Cookie row indicators
-- [x] Masked secret pattern scan, reload diff, scope import, exports, notes/tags, and basic fingerprints
+- **Scripts** lists JavaScript and source-map resources discovered by DevTools.
+  Click a row to open it in Sources. **Copy all URLs** copies the visible script
+  list.
+- Source-map comments are detected when script text is available.
+- **Endpoints** combines observed request paths with likely paths and absolute
+  URLs found in readable loaded JavaScript. Query values are omitted from
+  endpoint entries; parameter names are shown. Use the endpoint search box,
+  per-row **Copy**, or **Copy endpoints**.
+- These are best-effort heuristics. Minified, compressed, inaccessible,
+  dynamically generated, or otherwise unavailable text may not be scanned.
 
-## Manual test plan
+## Findings
 
-1. Load unpacked, open `https://example.com`, open DevTools and choose CleanInspect. Confirm page requests appear and extension/devtools URLs do not.
-2. Try a page with subresources such as `https://developer.mozilla.org/`. Compare **Same origin only**, **Include subdomains**, and **All**; inspect third-party dimming and the grouping summary.
-3. Toggle Images, Fonts, CSS, and Media individually. Search for a known URL fragment; enable Regex and try `\.css(\?|$)`.
-4. Save a distinctive filter preset on a hostname, reload that hostname, and verify it reapplies. Disable Preserve log and reload; then enable it and reload again. Use Clear to empty the table.
-5. Check the panel in both DevTools light and dark themes. On a request-heavy page, scroll through the table and verify more rows appear as you reach the bottom.
-6. Open **Scripts** on a modern site and confirm JavaScript URLs appear. Try **Copy all URLs** and paste into a text field. If a site exposes source maps, check for the source map badge.
-7. Open **Endpoints** and confirm observed API requests and recognizable API paths are listed once per method and path. Try **Copy endpoints** and paste the result.
-8. On a site that makes API requests, check that POST/PUT/PATCH/DELETE, JSON, Authorization, and Set-Cookie rows receive indicators when those request or response details are available.
-9. In **Findings**, check the scan status shows how many JavaScript resources and response bodies Chrome made available. Review the full matched value and source location for any potential secret. For a safe test, you can add a dummy token string to a local test page; do not paste real credentials into a page to test the scanner.
-10. Import `example.com` and `*.mozilla.org` as scope rules, turn on **In scope only**, and confirm matching requests remain. Try both paste and upload with a small text file.
-11. Click a request's Notes / tags cell, enter a note and tags, reload the panel, and confirm they remain. Test each export button with the current filters and open the downloaded files or paste the cURL commands into a text editor without running them.
-12. Reload the inspected page and confirm requests not seen on the previous load receive a **NEW** marker. Check **Findings** for framework and server-header hints on a site that exposes recognizable versions.
-13. Click a script in **Scripts** and verify DevTools opens its source. Search for a known path in **Endpoints**, then use that endpoint's **Copy** button.
+- The scanner reads text-like JavaScript and response bodies exposed by Chrome.
+  It skips image, font, audio, and video MIME types and bodies that look like
+  base64 binary. Unavailable or unreadable bodies are skipped.
+- Rules live in `patterns.js` and are applied with their validators. Overlapping
+  matches are grouped by exact value; a more specific provider rule takes
+  priority over token and generic assignment rules. Generic assignments are
+  capped at MEDIUM. Public-by-design matches cannot be HIGH.
+- Findings have severity badges, occurrence counts, character offsets, nearby
+  context, and clickable locations. **INFO** findings are hidden until **Show
+  recon / info** is enabled. Filter-chip state is saved in local storage.
+- Matched values are displayed in full for researcher review. Findings
+  themselves are kept in panel memory and are not written to local storage.
+- The scanner is heuristic: a match can be a false positive, and a missing match
+  does not establish that a page is safe.
+- **View findings (N)** counts HIGH, MEDIUM, and LOW findings; the smaller
+  `+N info` count reports INFO findings separately.
 
-## Notes
+## Scope import, notes, and reload differences
 
-Registrable-domain grouping uses a bundled compact public-suffix list covering common suffixes and country-code patterns; it is intentionally small and may not classify every uncommon public suffix correctly. Chrome DevTools network APIs can omit request bodies, script text, headers, or exact transfer sizes. Source-map comments, endpoints, secret matches, and fingerprints are best-effort heuristics and can miss items or report false positives. The HAR may only include fields Chrome made available. Unavailable content is skipped without breaking the panel.
+- **Paste scope** opens the inline editor. **Upload scope** accepts text or CSV
+  with one hostname or wildcard such as `*.example.com` per line. Toggle **In
+  scope only** to filter the table. Scope entries are stored per site.
+- Click a request's **Notes / tags** cell to edit it in the inline editor. Notes
+  and tags are stored per site.
+- **Preserve log** and reload differences are separate. The reload-diff store
+  contains only SHA-256 hashes of method, origin, path, and sorted query
+  parameter names; query values and full URLs are not stored in the diff.
+  Existing diff entries from earlier versions are discarded if they contain
+  unhashed values.
+- Per-site scope, notes, presets, and diff lists have size and entry limits.
+  When a limit is reached, oldest entries are dropped.
+
+## Exports and privacy
+
+- **Download filtered HAR**, **Copy cURL**, and **Download URL list** use the
+  currently visible requests. HAR and cURL share **Redact sensitive data**,
+  which is on by default.
+- With redaction enabled, Authorization, Cookie, Set-Cookie, and
+  API-key/token/secret-style headers are replaced; query values for parameter
+  names containing token, key, secret, auth, or session are replaced; HAR
+  response bodies are replaced. Cookie values in HAR cookie records are also
+  replaced.
+- Turning redaction off displays a warning. The resulting export or copied
+  command may contain credentials or private response data. Review the output
+  before sharing it.
+- Redaction does not rewrite data elsewhere in the page or DevTools. URL lists
+  are not redacted by this option.
+
+## Development and tests
+
+Run the dependency-free test suite with:
+
+```sh
+node tests/run.js
+```
+
+The tests load `patterns.js` in a VM, verify synthetic matches and
+false-positive cases, exercise domain grouping and privacy helpers, stress every
+rule with 400 KB inputs, and check a 2,000-request filter-and-sort path against
+a 100 ms budget.
+
+To refresh the bundled suffix data from the official source, run:
+
+```sh
+node tools/update-psl.js
+```
+
+The updater retrieves the canonical file from
+`https://publicsuffix.org/list/public_suffix_list.dat`. To generate from an
+already downloaded copy, pass its path as an argument. The generated data is
+bundled in `public-suffix-list.js`; the extension itself does not fetch the
+list. See `PSL-LICENSE.txt` for the Public Suffix List data license.
+
+## Manual checks
+
+1. Load the folder unpacked and open CleanInspect in DevTools on a normal
+   website. Confirm page requests appear and extension/browser schemes do not.
+2. Compare **Same origin only**, **Include subdomains**, and **All**. Toggle
+   **Hide data/blob** and verify `data:` entries follow it in all scopes.
+   Confirm `ws:`/`wss:` entries show as **websocket** when present.
+3. Search, sort, and scroll a request-heavy page. Test type filters, saved
+   presets, Preserve log, and Clear.
+4. Open **Scripts** and **Endpoints**, copy a single URL or endpoint, and verify
+   script rows open in Sources.
+5. Review findings in both light and dark DevTools themes. A page containing
+   only the word `internal` should not produce an internal-hostname finding. A
+   synthetic Google API key should appear once as LOW and tagged **usually not a
+   vulnerability**.
+6. Turn **Show recon / info** on and off. Confirm INFO is hidden by default and
+   the count is displayed separately.
+7. Add a request note and a scope list through the inline editor. Reload the
+   panel and verify they persist.
+8. Export a HAR and copy cURL with redaction enabled. Confirm sensitive headers,
+   matching query values, HAR cookies, and response bodies are redacted. Turn
+   redaction off and confirm the warning appears.
+9. Reload the inspected page and verify diff markers compare request method,
+   origin, path, and query parameter names without storing query values.
+
+## Limitations
+
+Chrome DevTools may omit response bodies, script text, headers, or transfer
+sizes. Resource access depends on what Chrome exposes; cross-origin restrictions
+and browser behavior can limit findings. Domain grouping depends on the bundled
+PSL snapshot until it is manually refreshed. The panel does not make
+vulnerability determinations and does not send collected page data anywhere.
