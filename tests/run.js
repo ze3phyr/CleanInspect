@@ -16,6 +16,7 @@ async function main() {
     crypto: webcrypto,
     TextEncoder,
     URL,
+    URLSearchParams,
     atob(value) {
       return Buffer.from(value, "base64").toString("binary");
     },
@@ -393,6 +394,38 @@ async function main() {
   const redactedParams = new URL(redactedUrl).searchParams;
   assert.equal(redactedParams.get("token"), "[REDACTED]");
   assert.equal(redactedParams.get("page"), "2");
+  const newlySensitiveNames = [
+    "code",
+    "state",
+    "sid",
+    "jwt",
+    "pass",
+    "password",
+    "passwd",
+    "pwd",
+    "signature",
+    "sig",
+    "ticket",
+    "credential",
+    "bearer",
+    "otp",
+    "nonce",
+    "csrf",
+    "xsrf",
+    "login-code",
+    "oauth.state",
+    "reset_password",
+  ];
+  for (const [index, name] of newlySensitiveNames.entries()) {
+    const url = privacyUtils.redactUrl(
+      `https://example.test/?${encodeURIComponent(name)}=query-marker-${index}`,
+    );
+    assert.equal(
+      new URL(url).searchParams.get(name),
+      "[REDACTED]",
+      `${name} query value should be redacted`,
+    );
+  }
   const redactedHeaders = privacyUtils.redactHeaders([
     { name: "Authorization", value: querySecret },
     { name: "Cookie", value: querySecret },
@@ -437,6 +470,13 @@ async function main() {
     "marker-response-set-cookie-712",
     "marker-response-body-713",
     "marker-nested-url-714",
+    "marker-location-code-715",
+    "marker-location-state-716",
+    "marker-redirect-code-717",
+    "marker-redirect-state-718",
+    "marker-query-code-719",
+    "marker-query-state-720",
+    "marker-json-nested-password-721",
   ];
   const markerEntry = {
     request: {
@@ -448,18 +488,32 @@ async function main() {
         { name: "X-API-Key", value: markers[4] },
       ],
       cookies: [{ name: "sid", value: markers[1] }],
+      queryString: [
+        { name: "code", value: markers[18] },
+        { name: "state", value: markers[19] },
+      ],
       postData: {
         mimeType: "application/json",
-        text: markers[5],
+        text: JSON.stringify({
+          password: markers[5],
+          displayName: "safe-name-survives",
+          profile: {
+            passwd: markers[20],
+            nickname: "safe-nickname-survives",
+          },
+        }),
         params: [{ name: "api_key", value: markers[6] }],
       },
     },
     response: {
       headers: [
-        { name: "Location", value: `https://else.test/?auth=${markers[7]}` },
+        {
+          name: "Location",
+          value: `https://else.test/?code=${markers[14]}&state=${markers[15]}`,
+        },
         { name: "Set-Cookie", value: `sid=${markers[11]}` },
       ],
-      redirectURL: `https://else.test/?session=${markers[8]}`,
+      redirectURL: `https://else.test/?code=${markers[16]}&state=${markers[17]}`,
       cookies: [{ name: "sid", value: markers[10] }],
       content: { text: markers[12] },
       url: `https://else.test/?secret=${markers[9]}`,
@@ -481,11 +535,57 @@ async function main() {
       `redacted cURL retained ${marker}`,
     );
   }
-  assert.equal(markerHar.request.postData.text, "[REDACTED]");
+  const redactedBody = JSON.parse(markerHar.request.postData.text);
+  assert.equal(redactedBody.password, "[REDACTED]");
+  assert.equal(redactedBody.displayName, "safe-name-survives");
+  assert.equal(redactedBody.profile.passwd, "[REDACTED]");
+  assert.equal(redactedBody.profile.nickname, "safe-nickname-survives");
+  assert.deepEqual(
+    [...new URL(markerHar.response.headers[0].value).searchParams.values()],
+    ["[REDACTED]", "[REDACTED]"],
+  );
+  assert.deepEqual(
+    [...new URL(markerHar.response.redirectURL).searchParams.values()],
+    ["[REDACTED]", "[REDACTED]"],
+  );
   assert.equal(markerHar.request.postData.params[0].name, "api_key");
   assert.equal(markerHar.request.postData.params[0].value, "[REDACTED]");
+  assert.deepEqual(
+    Array.from(markerHar.request.queryString, (item) => item.value),
+    ["[REDACTED]", "[REDACTED]"],
+  );
   assert.ok(!markerCurl.includes("--data-raw"));
   assert.ok(!markerCurl.includes("Cookie:"));
+  const redactedForm = privacyUtils.redactHarEntry({
+    request: {
+      postData: {
+        mimeType: "application/x-www-form-urlencoded",
+        text: "username=keep-this&state=form-secret",
+      },
+    },
+  });
+  assert.equal(
+    new URLSearchParams(redactedForm.request.postData.text).get("username"),
+    "keep-this",
+  );
+  assert.equal(
+    new URLSearchParams(redactedForm.request.postData.text).get("state"),
+    "[REDACTED]",
+  );
+  assert.equal(
+    privacyUtils.redactHarEntry({
+      request: {
+        postData: { mimeType: "application/json", text: "{broken" },
+      },
+    }).request.postData.text,
+    "[REDACTED]",
+  );
+  assert.equal(
+    privacyUtils.redactHarEntry({
+      request: { postData: { mimeType: "text/plain", text: "sensitive" } },
+    }).request.postData.text,
+    "[REDACTED]",
+  );
   const capped = privacyUtils.capStoredValue(
     { oldest: "1", middle: "2", newest: "3" },
     2,

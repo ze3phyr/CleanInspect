@@ -1,7 +1,39 @@
 (() => {
-  const sensitiveQueryName = /(?:token|key|secret|auth|session)/i;
+  const legacySensitiveQueryName = /(?:token|key|secret|auth|session)/i;
+  const sensitiveNameSegments = new Set([
+    "token",
+    "key",
+    "secret",
+    "auth",
+    "session",
+    "code",
+    "state",
+    "sid",
+    "jwt",
+    "pass",
+    "password",
+    "passwd",
+    "pwd",
+    "signature",
+    "sig",
+    "ticket",
+    "credential",
+    "bearer",
+    "otp",
+    "nonce",
+    "csrf",
+    "xsrf",
+  ]);
   const sensitiveHeaderName =
     /(?:authorization|proxy-authorization|cookie|set-cookie|(?:^|[-_])(?:api[-_]?key|token|secret|password|credential)(?:$|[-_]))/i;
+
+  function isSensitiveName(name) {
+    const normalized = String(name || "").toLowerCase();
+    if (legacySensitiveQueryName.test(normalized)) return true;
+    return normalized.split(/[_\-.]+/).some((part) =>
+      sensitiveNameSegments.has(part),
+    );
+  }
 
   function requestSignature(request) {
     const url = new URL(request.url);
@@ -24,7 +56,7 @@
       for (const [name, queryValue] of url.searchParams) {
         pairs.push([
           name,
-          sensitiveQueryName.test(name) ? "[REDACTED]" : queryValue,
+          isSensitiveName(name) ? "[REDACTED]" : queryValue,
         ]);
       }
       url.search = "";
@@ -68,7 +100,46 @@
   function redactPostData(postData) {
     if (!postData) return postData;
     const result = { ...postData };
-    if (Object.hasOwn(result, "text")) result.text = "[REDACTED]";
+    if (Object.hasOwn(result, "text")) {
+      const mimeType = String(result.mimeType || "")
+        .split(";", 1)[0]
+        .trim();
+      if (/^[^/]+\/(?:json|[^/]+\+json)$/i.test(mimeType)) {
+        try {
+          const parsed = JSON.parse(result.text);
+          const redactJson = (value) => {
+            if (Array.isArray(value)) return value.map(redactJson);
+            if (!value || typeof value !== "object") return value;
+            const redacted = Object.create(null);
+            for (const [key, child] of Object.entries(value)) {
+              redacted[key] = isSensitiveName(key)
+                ? "[REDACTED]"
+                : redactJson(child);
+            }
+            return redacted;
+          };
+          result.text = JSON.stringify(redactJson(parsed));
+        } catch {
+          result.text = "[REDACTED]";
+        }
+      } else if (
+        mimeType.toLowerCase() ===
+        "application/x-www-form-urlencoded"
+      ) {
+        try {
+          const params = new URLSearchParams(String(result.text));
+          result.text = [...params]
+            .map(([name, value]) =>
+              `${encodeURIComponent(name)}=${encodeURIComponent(isSensitiveName(name) ? "[REDACTED]" : value)}`,
+            )
+            .join("&");
+        } catch {
+          result.text = "[REDACTED]";
+        }
+      } else {
+        result.text = "[REDACTED]";
+      }
+    }
     if (Array.isArray(result.params)) {
       result.params = result.params.map((param) => ({
         ...param,
@@ -109,7 +180,7 @@
       if (Array.isArray(copy.request.queryString)) {
         copy.request.queryString = copy.request.queryString.map((item) => ({
           ...item,
-          value: sensitiveQueryName.test(String(item.name || ""))
+          value: isSensitiveName(item.name)
             ? "[REDACTED]"
             : item.value,
         }));

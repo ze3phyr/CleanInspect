@@ -102,11 +102,16 @@ Suffix List updater is a developer tool; it downloads only when someone runs it.
 - With redaction enabled, Authorization, Proxy-Authorization, Cookie,
   Set-Cookie, and API-key/token/secret/password/credential-style header values
   are replaced. HAR request and response cookie-record values are replaced.
-  HAR request `postData.text`, every `postData.params` value, and response body
-  text are replaced while parameter and field names remain. Query values for
-  names containing `token`, `key`, `secret`, `auth`, or `session` are replaced
-  in URLs stored in the HAR entry, including request URLs, redirect URLs, and
-  `Location` headers; matching HAR `queryString` values are also replaced.
+  For JSON `postData.text`, values under sensitive-named keys are replaced
+  recursively while other fields remain. For form-urlencoded text, only fields
+  with sensitive names are redacted; other body types are replaced entirely.
+  Every `postData.params` value and response body text are replaced while field
+  names remain. Sensitive names include token, key, secret, auth, session,
+  code, state, sid, jwt, password variants, signature, sig, ticket, credential,
+  bearer, otp, nonce, csrf, and xsrf, matched case-insensitively as whole names
+  or `_`, `-`, and `.` separated name segments. Matching URL query values are
+  redacted in HAR URLs, redirect URLs, `Location` headers, and `queryString`
+  arrays.
 - Redacted cURL commands redact sensitive query values and sensitive header
   values, omit Cookie/Set-Cookie headers, and omit request bodies entirely, so
   no `--data-raw` argument is copied. With redaction turned off, cURL includes
