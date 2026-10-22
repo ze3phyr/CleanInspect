@@ -1,0 +1,8 @@
+{
+  "manifest_version": 3,
+  "name": "CleanInspect",
+  "version": "1.2.0",
+  "description": "A clean DevTools panel for first-party page resources.",
+  "devtools_page": "devtools.html",
+  "permissions": ["storage", "clipboardWrite"]
+}
