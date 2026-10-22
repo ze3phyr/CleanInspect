@@ -1,20 +1,69 @@
 // Resolve overlapping detections into one finding per exact value.
 (() => {
   const severityRank = { high: 0, medium: 1, low: 2, info: 3 };
-  const providerPattern =
-    /(?:aws|amazon|github|google|stripe|slack|square|twilio|sendgrid|npm|private key)/i;
-  const authPattern = /(?:jwt|bearer|basic)/i;
-  const genericPattern =
-    /(?:assignment|credential|generic|api[_ -]?key|access[_ -]?token|client[_ -]?secret)/i;
-  const passwordPattern = /(?:hardcoded[_ -]?password|password)/i;
+  const specificityRank = {
+    provider: 4,
+    token: 3,
+    generic: 2,
+    password: 1,
+    recon: 0,
+  };
+  const jwtPublicNote = "likely public client token";
 
-  function specificity(rule) {
-    const identity = `${rule.name || ""} ${rule.label || ""}`;
-    if (providerPattern.test(identity)) return 4;
-    if (authPattern.test(identity)) return 3;
-    if (genericPattern.test(identity)) return 2;
-    if (passwordPattern.test(identity)) return 1;
-    return 0;
+  function decodeJwtPayload(value) {
+    try {
+      const parts = value.split(".");
+      if (parts.length !== 3) return null;
+      let encoded = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      while (encoded.length % 4) encoded += "=";
+      const payload = JSON.parse(atob(encoded));
+      return payload && typeof payload === "object" ? payload : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function isJwtRule(rule) {
+    return /\bjwt\b/i.test(String(rule.label || rule.name || ""));
+  }
+
+  function resolveRule(rule, value) {
+    let severity = severityRank[rule.severity] === undefined
+      ? "info"
+      : rule.severity;
+    let note = rule.note || "";
+    const label = String(rule.label || rule.name || "");
+    const isPublicByDesign = /public by design/i.test(label);
+
+    if (isJwtRule(rule)) {
+      const payload = decodeJwtPayload(value);
+      const role = String((payload && payload.role) || "").toLowerCase();
+      const issuer = String((payload && payload.iss) || "");
+      if (role === "service_role") {
+        severity = "high";
+      } else if (
+        role === "anon" ||
+        role === "public" ||
+        /firebase|securetoken\.google\.com|supabase|public[ _-]?client|anon/i.test(
+          issuer,
+        )
+      ) {
+        severity = "low";
+        note = jwtPublicNote;
+      } else {
+        severity = "medium";
+      }
+    }
+
+    if (
+      (rule.kind === "generic" || rule.kind === "password") &&
+      severityRank[severity] < severityRank.medium
+    ) {
+      severity = "medium";
+    }
+    if (isPublicByDesign && severity === "high") severity = "medium";
+
+    return { severity, note, isPublicByDesign };
   }
 
   function resolve(text, rules) {
@@ -32,49 +81,38 @@
             !value ||
             (typeof rule.validate === "function" &&
               !rule.validate(value, match))
-          )
+          ) {
             continue;
+          }
           const label = rule.label || rule.name || "Unlabeled rule";
-          const rank = specificity(rule);
-          let severity =
-            severityRank[rule.severity] === undefined ? "info" : rule.severity;
-          // Generic key-name assignments and public keys can never be reported as high.
-          if (rank === 2 && severityRank[severity] < severityRank.medium)
-            severity = "medium";
-          if (/public by design/i.test(label) && severity === "high")
-            severity = "medium";
+          const specificity = specificityRank[rule.kind] ?? 0;
+          const resolved = resolveRule(rule, value);
           let item = grouped.get(value);
           if (!item) {
             item = {
               value,
               rule,
               label,
-              severity,
-              specificity: rank,
-              publicByDesign: false,
+              severity: resolved.severity,
+              note: resolved.note,
+              specificity,
+              publicByDesign: resolved.isPublicByDesign,
               matches: [],
             };
             grouped.set(value, item);
-          } else if (
-            rank > item.specificity ||
-            (rank === item.specificity &&
-              severityRank[severity] < severityRank[item.severity])
-          ) {
+          } else if (specificity > item.specificity) {
             item.rule = rule;
             item.label = label;
-            item.severity = severity;
-            item.specificity = rank;
+            item.severity = resolved.severity;
+            item.note = resolved.note;
+            item.specificity = specificity;
+            item.publicByDesign = resolved.isPublicByDesign;
           }
-          if (/public by design/i.test(label)) item.publicByDesign = true;
           item.matches.push({ match, rule });
         }
       } catch {
         // A malformed or throwing rule cannot interrupt scans for other rules.
       }
-    }
-    for (const item of grouped.values()) {
-      if (item.publicByDesign && item.severity === "high")
-        item.severity = "medium";
     }
     return [...grouped.values()];
   }

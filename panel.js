@@ -680,7 +680,7 @@
         item = {
           name,
           label,
-          note: rule.note || "",
+          note: group.note || rule.note || "",
           severity: group.severity,
           value,
           specificity: group.specificity,
@@ -696,7 +696,7 @@
       ) {
         item.name = name;
         item.label = label;
-        item.note = rule.note || "";
+        item.note = group.note || rule.note || "";
         item.severity =
           group.publicByDesign && group.severity === "high"
             ? "medium"
@@ -1308,9 +1308,6 @@
       ? window.CleanInspectPrivacyUtils.redactHarEntry(entry)
       : entry;
   }
-  function shellQuote(s) {
-    return "'" + String(s).replace(/'/g, "'\\''") + "'";
-  }
   function parseScope(text) {
     const tokens = text.split(/[\n,]{1,1000}/).flatMap((line) =>
       line
@@ -1441,22 +1438,17 @@
   $("copyCurl").addEventListener("click", async () => {
     const commands = state.shown
       .filter((r) => r.source === "network")
-      .map((r) => {
-        const headers = $("redactSensitive").checked
-          ? window.CleanInspectPrivacyUtils.redactHeaders(r.requestHeaders)
-          : r.requestHeaders;
-        const h = headers
-          .map((x) => `-H ${shellQuote(`${x.name}: ${x.value}`)}`)
-          .join(" ");
-        const url = $("redactSensitive").checked
-          ? window.CleanInspectPrivacyUtils.redactUrl(r.url)
-          : r.url;
-        const d =
-          r.postData && r.postData.text
-            ? ` --data-raw ${shellQuote(r.postData.text)}`
-            : "";
-        return `curl ${shellQuote(url)} -X ${shellQuote(r.method)}${h ? " " + h : ""}${d}`;
-      });
+      .map((r) =>
+        window.CleanInspectPrivacyUtils.buildCurlCommand(
+          {
+            url: r.url,
+            method: r.method,
+            headers: r.requestHeaders,
+            postData: r.postData,
+          },
+          $("redactSensitive").checked,
+        ),
+      );
     try {
       await navigator.clipboard.writeText(commands.join("\n"));
       setMessage(`${commands.length} cURL command(s) copied`);

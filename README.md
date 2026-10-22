@@ -58,10 +58,17 @@ Suffix List updater is a developer tool; it downloads only when someone runs it.
 - The scanner reads text-like JavaScript and response bodies exposed by Chrome.
   It skips image, font, audio, and video MIME types and bodies that look like
   base64 binary. Unavailable or unreadable bodies are skipped.
-- Rules live in `patterns.js` and are applied with their validators. Overlapping
-  matches are grouped by exact value; a more specific provider rule takes
-  priority over token and generic assignment rules. Generic assignments are
-  capped at MEDIUM. Public-by-design matches cannot be HIGH.
+- `patterns.js` contains 48 rules. Matches are checked with each rule's
+  validator and grouped by exact value. When rules overlap, provider-specific
+  rules take priority over token rules, generic assignments, hardcoded
+  passwords, and reconnaissance rules. Generic and password findings are
+  capped at MEDIUM; a rule labeled **public by design** cannot be HIGH. Rules
+  otherwise keep their declared severity. Provider keys such as GitLab,
+  Shopify, OpenAI, and Anthropic remain HIGH.
+- JWTs with the `service_role` role are HIGH. JWTs with `anon` or `public` roles,
+  or an issuer indicating Firebase, Supabase, an anonymous key, or a public
+  client, are LOW with the note **likely public client token**. Other JWTs are
+  MEDIUM.
 - Findings have severity badges, occurrence counts, character offsets, nearby
   context, and clickable locations. **INFO** findings are hidden until **Show
   recon / info** is enabled. Filter-chip state is saved in local storage.
@@ -91,12 +98,19 @@ Suffix List updater is a developer tool; it downloads only when someone runs it.
 
 - **Download filtered HAR**, **Copy cURL**, and **Download URL list** use the
   currently visible requests. HAR and cURL share **Redact sensitive data**,
-  which is on by default.
-- With redaction enabled, Authorization, Cookie, Set-Cookie, and
-  API-key/token/secret-style headers are replaced; query values for parameter
-  names containing token, key, secret, auth, or session are replaced; HAR
-  response bodies are replaced. Cookie values in HAR cookie records are also
-  replaced.
+  which is on by default. The URL list is not redacted by this option.
+- With redaction enabled, Authorization, Proxy-Authorization, Cookie,
+  Set-Cookie, and API-key/token/secret/password/credential-style header values
+  are replaced. HAR request and response cookie-record values are replaced.
+  HAR request `postData.text`, every `postData.params` value, and response body
+  text are replaced while parameter and field names remain. Query values for
+  names containing `token`, `key`, `secret`, `auth`, or `session` are replaced
+  in URLs stored in the HAR entry, including request URLs, redirect URLs, and
+  `Location` headers; matching HAR `queryString` values are also replaced.
+- Redacted cURL commands redact sensitive query values and sensitive header
+  values, omit Cookie/Set-Cookie headers, and omit request bodies entirely, so
+  no `--data-raw` argument is copied. With redaction turned off, cURL includes
+  request headers and a text body when available.
 - Turning redaction off displays a warning. The resulting export or copied
   command may contain credentials or private response data. Review the output
   before sharing it.
